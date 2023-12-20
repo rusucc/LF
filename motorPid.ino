@@ -12,8 +12,7 @@ void encB(){
 }
 class PID {
   protected:
-    double KP, KI, KD;
-    int integral = 0, ev = 0;
+    double KP, KI, KD, integral = 0, ev = 0;
   public:
     PID(double KP=0, double KI=0, double KD=0) {
       this->KP = KP;
@@ -25,10 +24,10 @@ class PID {
       this->KI = KI;
       this->KD = KD;
     }
-    double calculateOutput(int target, int current) {
-      int e = current - target;
+    double calculateOutput(double target, double current) {
+      double e = current - target;
       integral += e;
-      int out = KP * e + KI * integral + KD * (e - ev);
+      double out = KP * e + KI * integral + KD * (e - ev);
       ev = e;
       return out;
     }
@@ -46,11 +45,16 @@ class Motor: public PID {
       speed = distance * 10/ dt; // metri pe secunda
     }
   public:
-    Motor(pins p,double KPM, double KIM, double KDM) : PID() {
-      this->set(KPM,KIM,KDM);
+    Motor(pins p,double KPM, double KIM, double KDM, double r, double ppr, double reductor) : PID() {
+      this->KP = KPM;
+      this->KI = KIM;
+      this->KD = KDM;
       this->p.IN1 = p.IN1;
       this->p.IN2 = p.IN2;
       this->p.enc = p.enc;
+      this->r = r;
+      this->ppr = ppr;
+      this->reductor = reductor;
     }
     void setTargetSpeed(double v){
       targetSpeed = v;
@@ -62,8 +66,8 @@ class Motor: public PID {
       return p;
     }
 };
-Motor M1=Motor({2,3,4},0,0,0);
-Motor M2=Motor({5,6,7},0,0,0);
+Motor M1=Motor({2,3,4},0,0,0,1,3,30);
+Motor M2=Motor({5,6,7},0,0,0,1,3,30);
 PID Senzori;
 void refresh(){
   M1.update(count0);
@@ -83,7 +87,7 @@ void setup() {
 void loop() {
   bool run = false;
   if (Serial1.available()) {
-    if(Serial1.read()=='1') run = true;
+    if(Serial1.read()=='1') run = true,Serial.println("bluetooth");
     else run = false;
   }
   delay(10);
