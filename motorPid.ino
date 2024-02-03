@@ -87,9 +87,15 @@ class Motor: public PID {
     String printPID(){
       return "P: " + String(KP) + " I: " + String(KI) + " D: " + String(KD) + " E: "+String(speed-targetSpeed)+" O: "+String(out)+" I:" + integral;
     }
+    String printAll(){
+      return "V: " + String(speed) + " Vt: " + String(targetSpeed) + " Output PID: " + String(out)+" PWM: " + String(PWM)+ " E: "+String(speed-targetSpeed)+" I:" + integral;
+    }
+    String printCSV(){//v,vt,target,out,pwm,e,i
+      return ","+String(speed)+"," + String(targetSpeed) + "," + String(out)+"," + String(PWM)+ ","+String(speed-targetSpeed)+"," + integral;
+    }
 };
-Motor M1 = Motor({2, 3, 4}    , 10, 0, 0, 1, 3, 30);
-Motor M2 = Motor({33, 34, 35} , 10, 0, 0, 1, 3, 30); //Motor M({IN1,IN2,enc},KP,KI,KD,r[cm],ppr,reductor);
+Motor M1 = Motor({2, 3, 4}    , 0.25, 0.01, 0.2, 1, 3, 30);
+Motor M2 = Motor({33, 34, 35} , 0.25, 0.01, 0.2, 1, 3, 30); //Motor M({IN1,IN2,enc},KP,KI,KD,r[cm],ppr,reductor);
 PID Senzori;
 void refresh() {
   M1.update(count0);
@@ -106,7 +112,7 @@ void setup() {
   BT.begin(9600); //bluetooth
   BT.println("Hello");
   crono.begin(refresh, dt * 1000); //el vrea microsecunde, 1000 pt milisecunde
-  telemetrie.begin([](){BT.println(M1.printV());},500*1000);//telemetrie la fiecare secunda
+  telemetrie.begin([](){BT.println(M1.printCSV());},300*1000);//telemetrie la fiecare secunda
   attachInterrupt(digitalPinToInterrupt(M1.getPins().enc), encA, RISING);
   attachInterrupt(digitalPinToInterrupt(M2.getPins().enc), encB, RISING);
 }
