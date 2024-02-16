@@ -1,10 +1,13 @@
 #define BT Serial1
+#define number 6 //nr senzori
 IntervalTimer crono;
 IntervalTimer telemetrie;
 
-const int dt = 50; // ms pentru update motoare etc
+const int dt = 50; // ms pentru update motoare 
+const int dts = 10; // ms pentru senzori
 volatile int count0 = 0;
 volatile int count1 = 0;
+long T; //timpul in ms aici 
 
 void encA() {
   count0++;
@@ -45,12 +48,12 @@ class Motor: public PID {
       int IN1, IN2, enc;
     } p;
     struct roata{
-      float raza, ppr, reductor; // r in cm
+      float radius, ppr, reductor; // r in cm
     } r;
     float PWM = 0;
     int out = 0;
     inline void calculateSpeed() {
-      distance = count * 2 * PI * r.raza / r.ppr / r.reductor;
+      distance = count * 2 * PI * r.radius / r.ppr / r.reductor;
       speed = distance * 1000 / dt; // cm pe secunda
     }
     Motor(pins p, double KPM, double KIM, double KDM, roata r) : PID() {
@@ -60,7 +63,7 @@ class Motor: public PID {
       this->p.IN1 = p.IN1;
       this->p.IN2 = p.IN2;
       this->p.enc = p.enc;
-      this->r.raza= r.raza;
+      this->r.radius= r.radius;
       this->r.ppr = r.ppr;
       this->r.reductor = r.reductor;
     }
@@ -76,14 +79,14 @@ class Motor: public PID {
       PWM=(PWM>255)? 255:PWM;
       analogWrite(p.IN1, PWM);
       analogWrite(p.IN2, 0);
-    }
+    } 
     void setPWM(int val){
       PWM=val;
     }
-    pins getPins() {
+    pins getPins(){
       return p;
     }
-    String printV() {
+    String printV(){
       return "V: " + String(speed) + " Vt: " + String(targetSpeed) + " Output PID: " + String(out)+" PWM: " + String(PWM);
     }
     String printPID(){
@@ -96,9 +99,54 @@ class Motor: public PID {
       return ","+String(speed)+"," + String(targetSpeed) + "," + String(out)+"," + String(PWM)+ ","+String(speed-targetSpeed)+"," + integral;
     }
 };
+class Sensors: public PID{
+  public:
+    bool line;
+    struct calibrated_values{
+      int max_value;
+      int min_value;
+    } calib[number];
+    int values[number];
+    int pins[number];
+    const int threshold = 700;
+    int position;
+    void calculatePosition(){
+      int sum = 0;
+      int w_avg = 0;
+      line = false;
+      for(int i = 0; i < number; i++){
+        while(T-millis()<dts);
+        values[i] = map(analogRead(pins[i]),calib[i].min_value,calib[i].max_value,0,1000);
+        T=millis();
+        if(values[i]>threshold) line = true;
+        sum+=values[i];
+        w_avg += (i*1000)*values[i];
+      }
+      if(sum>0) position = w_avg/sum;
+      else return;
+    }
+    void calibrate(int cycles){
+      for(int c = 0; c < cycles; c++){
+        for(int i = 0; i < number; i++){
+          while(millis()-T<dts);
+          T = millis();
+          int temp_value = analogRead(pins[i]);
+          calib[i].min_value=min(calib[i].min_value,temp_value);
+          calib[i].max_value=max(calib[i].max_value,temp_value);
+        }
+      }
+    }
+    Sensors(double KPS, double KIS, double KDS, int pins[]) : PID() {
+      this->KP = KPS;
+      this->KI = KIS;
+      this->KD = KDS;
+      memcpy(this->pins,pins,number*sizeof(int));//daca nu merge, asta e
+    }
+};
+int pins_sensors[number]={0, 0, 0, 0, 0 , 0};
 Motor M1 = Motor({2, 3, 4}    , 0,0,0, {1, 3, 30});
-Motor M2 = Motor({33, 34, 35} , 0.25, 0.01, 0.2, {1, 3, 30}); //Motor M({IN1,IN2,enc},KP,KI,KD,{raza[cm],ppr,reductor});
-PID Senzori;
+Motor M2 = Motor({33, 34, 35} , 0.25, 0.01, 0.2, {1, 3, 30}); //Motor M({IN1,IN2,enc},KP,KI,KD,{radius[cm],ppr,reductor});
+Sensors QRE(0, 0, 0, pins_sensors);
 void refresh() {
   M1.update(count0);
   M1.out = M1.calculateOutput(M1.targetSpeed, M1.speed);
