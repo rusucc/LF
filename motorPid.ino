@@ -8,14 +8,14 @@ volatile int count1 = 0;
 
 void encA() {
   count0++;
-}
+}//functie apelata pe interrupt pentru motorul A
 void encB() {
   count1++;
-}
+}//functie apelata pe interupt pentru motorul B
 class PID {
   protected:
-    double KP, KI, KD, integral = 0, ev = 0;
-    //ev-eroare veche
+    double KP, KI, KD, integral = 0, e_old = 0;
+    //e_old-eroare veche
   public:
     PID(double KP = 0, double KI = 0, double KD = 0) {
       this->KP = KP;
@@ -29,11 +29,11 @@ class PID {
     }
     double calculateOutput(double target, double current) {
       double e = current-target;
-      integral += e;
+      integral += (KI * e);
       integral=(integral>4000)? 4000:integral;
       integral=(integral<-4000)? -4000:integral;
-      double out = KP * e + KI * integral + KD * (e - ev);
-      ev = e;
+      double out = KP * e + integral + KD * (e - e_old);
+      e_old = e;
       return out;
     }
 };
@@ -44,23 +44,25 @@ class Motor: public PID {
     struct pins {
       int IN1, IN2, enc;
     } p;
-    double r, ppr, reductor; // r in cm
+    struct roata{
+      float raza, ppr, reductor; // r in cm
+    } r;
     float PWM = 0;
     int out = 0;
     inline void calculateSpeed() {
-      distance = count * 2 * PI * r / ppr / reductor;
+      distance = count * 2 * PI * r.raza / r.ppr / r.reductor;
       speed = distance * 1000 / dt; // cm pe secunda
     }
-    Motor(pins p, double KPM, double KIM, double KDM, double r, double ppr, double reductor) : PID() {
+    Motor(pins p, double KPM, double KIM, double KDM, roata r) : PID() {
       this->KP = KPM;
       this->KI = KIM;
       this->KD = KDM;
       this->p.IN1 = p.IN1;
       this->p.IN2 = p.IN2;
       this->p.enc = p.enc;
-      this->r = r;
-      this->ppr = ppr;
-      this->reductor = reductor;
+      this->r.raza= r.raza;
+      this->r.ppr = r.ppr;
+      this->r.reductor = r.reductor;
     }
     void setTargetSpeed(double v) {
       targetSpeed = v;
@@ -94,8 +96,8 @@ class Motor: public PID {
       return ","+String(speed)+"," + String(targetSpeed) + "," + String(out)+"," + String(PWM)+ ","+String(speed-targetSpeed)+"," + integral;
     }
 };
-Motor M1 = Motor({2, 3, 4}    , 0.25, 0.01, 0.2, 1, 3, 30);
-Motor M2 = Motor({33, 34, 35} , 0.25, 0.01, 0.2, 1, 3, 30); //Motor M({IN1,IN2,enc},KP,KI,KD,r[cm],ppr,reductor);
+Motor M1 = Motor({2, 3, 4}    , 0,0,0, {1, 3, 30});
+Motor M2 = Motor({33, 34, 35} , 0.25, 0.01, 0.2, {1, 3, 30}); //Motor M({IN1,IN2,enc},KP,KI,KD,{raza[cm],ppr,reductor});
 PID Senzori;
 void refresh() {
   M1.update(count0);
